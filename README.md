@@ -1,7 +1,7 @@
 # Grayscale image sensor simulator
 
 Vanilla (OS and HW agnostic) C++ code to generate simulated images for a
-grayscale image sensor.
+grayscale image sensor.  Windows GDI based "CubeTest.exe" generates 100+ fps at 1008x768 resolution.
 
 ## Build/Test/Run
 1. setup source and build dirs: `cmake -S . -B build`
@@ -59,7 +59,7 @@ a helicopter blade at 500 rpm = 0.03 (deg/10) / usec
                      |
                      v
 +--------------------------------------------------+
-|                 Lens blur                        |
+|              TODO:Lens blur                      |
 |                                                  |<-- enable, point-spread
 |         out = convolve(in, PSF)                  |    function (PSF)
 +--------------------------------------------------+
@@ -103,6 +103,7 @@ as angles around x, y and z axes)
 - [ ] Add motion blur rendering (sum of sub-exposures where sub-exposure time
 is a function of relative velocity between camera and objects)
 - [ ] Add line group rendering to simulate rolling-shutter
+- [ ] Add lens blur
 - [ ] Support for uint8 and uint16 output (currently only uint32)
 - [ ] Add back-to-front rendering of objects to improve occlusion accuracy
 - [ ] Add z-buffer to replace back-to-front rendering (but z-buf might be too slow)
