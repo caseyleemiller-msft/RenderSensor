@@ -48,4 +48,40 @@ void PoissonDist(
     uint32_t  count, // number of values to generate
     uint32_t* pOut); // output values
 
+////////////////////////////////////////////////////////////////////////////////
+// Generate random integers drawn from Poisson distribution with parameter "p".
+// Uses Gaussian approximation for p >= 20.
+template <class T = uint32_t> void PoissonDist(
+    float     lam,   // mean and variance of Poisson distribution
+    uint32_t  count, // number of values to generate
+    T*        pOut)  // output values drawn from Poisson distribution
+{
+    if (lam == 0.0f)
+    {
+        memset(pOut, 0x00u, count * sizeof(T));
+        return;
+    }
+
+    const T maxVal = std::numeric_limits<T>::max();
+    if (lam < 20.0f)
+    {
+        while (count--)
+        {
+            uint32_t value = randp(lam);
+            if (value > maxVal) { value = maxVal; }
+            *pOut++ = (T)value;
+        }
+        return;
+    }
+    const float mean   = lam;
+    const float stddev = sqrtf(lam);
+    while (count--)
+    {
+        float gaussian = stddev * randn() + mean;
+        if (gaussian < 0.0f) { gaussian = 0.0f; } // Poisson is non-negative
+        uint32_t value = (uint32_t)(gaussian + 0.5f); // round to integer
+        *pOut++ = (value > maxVal) ? maxVal : (T)value;
+    }
+}
+
 #endif

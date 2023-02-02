@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <array>
+#include "random.h" // PoissonDist
 
 class SpadSim
 {
@@ -36,7 +37,6 @@ public:
         const float scaleHFOV  = 1.0f + radiusHFOV * 0.3f / (maxRadius - 1);
         for (int r = 0; r <= maxRadius; ++r)
         {
-            // scale factor with 8 fractional bits.
             // (scale > 1) --> barrel
             // (scale < 1) --> pincushion
             float scale = 1.0f + r * 0.3f / maxRadius;
@@ -44,7 +44,11 @@ public:
             // adjust so scale = 1 at (X=screenWidthDiv2, Y=0) so that horizontal
             // field of view is unchanged in distorted image.
             scale /= scaleHFOV;
-            m_lensDistLUT[r] = (int)(scale * 256.0f + 0.5f);
+
+            // final scale factor with 8 fractional bits.
+            uint32_t value = (uint32_t)(scale * 256.0f + 0.5f); // round to int
+            assert(value <= std::numeric_limits<uint16_t>::max());
+            m_lensDistLUT[r] = (uint16_t)value;
         }
 
         // relative illumination (aka lens vignetting)--------------------------
@@ -61,7 +65,7 @@ public:
         m_pDF60.reserve(numPix);
         m_pDF60.resize(numPix);
         srand(seedDF);
-        PoissonDist(2.0, numPix, m_pDF60.data()); // SPAD avg DF pixel value is 2.0 at 60C
+        PoissonDist<uint32_t>(2.0, numPix, m_pDF60.data()); // SPAD avg DF pixel value is 2.0 at 60C
 
         // Add 1% hot pixels to pDF60
         const int numHot = 1 * numPix / 100;
@@ -72,7 +76,7 @@ public:
             uint32_t c = rand() % width;
 
             // Generate Poisson (with mean 80)
-            PoissonDist(80.0f, 1u, m_pDF60.data() + r * width + c);
+            PoissonDist<uint32_t>(80.0f, 1u, m_pDF60.data() + r * width + c);
         }
 
         m_pDF.reserve(numPix);
@@ -82,14 +86,11 @@ public:
         // Create Poisson noise 2D LUT------------------------------------------
         const uint32_t noiseHeight = 256; // >= largest pixel value
         const uint32_t noiseWidth  = 256; // large enough for accurate Poisson stats
-        m_noiseLUT.reserve(noiseHeight * noiseWidth);
-        m_noiseLUT.resize(noiseHeight * noiseWidth);
         for (int r = 0; r < noiseHeight; ++r) // loop thru rows
         {
-            uint32_t* pRow = m_noiseLUT.data() + r * noiseWidth;
-            PoissonDist((float)r, noiseWidth, pRow); // Fill row with randp(r)
+            uint16_t* pRow = m_noiseLUT.data() + r * noiseWidth;
+            PoissonDist<uint16_t>((float)r, noiseWidth, pRow); // Fill row with randp(r)
         }
-        m_noiseIdx = 0;
 
         // Set PWL LUT----------------------------------------------------------
         for (int ii = 0; ii < (1 << 12); ++ii)
@@ -100,8 +101,6 @@ public:
         }
 
         // Set LUT to create RGB from 8-bit grayscale---------------------------
-        m_byte2rgbLUT.reserve(256);
-        m_byte2rgbLUT.resize(256);
         for (uint32_t ii = 0; ii < 256; ++ii)
         {
             m_byte2rgbLUT[ii] = (ii << 16) | (ii << 8) | ii;
@@ -178,7 +177,7 @@ public:
                 {
                     int rd = r * m_lensDistLUT[iradius] / 256 + heightDiv2;
                     int cd = c * m_lensDistLUT[iradius] / 256 + widthDiv2;
-                    if ((0 <= rd) && (rd < m_height) &&
+                    if ((0 <= rd) && (rd < m_height) && // image boundry check
                         (0 <= cd) && (cd < m_width)    )
                     {
                         // TODO: bilinear interp: Make rd, cd and lensDistLut Fixedpoint
@@ -213,7 +212,7 @@ public:
                 }
                 else              // else generate Poisson sample on-the-fly
                 {
-                    PoissonDist((float)value, 1u, &value);
+                    PoissonDist<uint32_t>((float)value, 1u, &value);
                 }
 
                 // TODO: SPAD nonlinearity to convert from photons to counts.
@@ -237,9 +236,8 @@ public:
                 //          =       2*c + 1
                 radius2 += 2 * c + 1; // compute radius^2 for (c+1)
 
-                // TODO: can remove the next two multiplies in favor of
-                // shifts and adds - see the RadiusRaster unit test. See what
-                // is faster.
+                // Adjust iradius so that: iradius^2 <= radius2
+                // TODO: 2 mults can be replaced with shifts/adds (see RadiusRaster unit test)
                 if (iradius * iradius < radius2) { ++iradius; } // avoid sqrt()
                 if (iradius * iradius > radius2) { --iradius; } // avoid sqrt()
             }
@@ -253,14 +251,15 @@ private:
     std::vector<uint32_t> m_pDF60;
     std::vector<uint32_t> m_pDF;
 
-    std::vector<int>      m_lensDistLUT;      //  barrel/pincushion distortion
+    // LUTs that take radius as input
+    std::vector<uint16_t> m_lensDistLUT;      //  barrel/pincushion distortion
     std::vector<uint8_t>  m_relativeIllumLUT; // Q8 fractional multiplier
 
+    // LUTs that take pixel value as input
     uint8_t m_noiseIdx;
-    std::vector<uint32_t> m_noiseLUT;         //  8-bit input, 32-bit output
-
-    std::array<uint8_t, 4096>  m_pwlLUT;      // 12-bit input,  8-bit output
-    std::vector<uint32_t> m_byte2rgbLUT;      //  8-bit input, 32-bit output
+    std::array<uint16_t, 256*256> m_noiseLUT;    // 2D, 8-bit input, 16-bit output
+    std::array<uint8_t,     4096> m_pwlLUT;      // 12-bit input,  8-bit output
+    std::array<uint32_t,     256> m_byte2rgbLUT; //  8-bit input, 32-bit output
 };
 
 #endif

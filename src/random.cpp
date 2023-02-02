@@ -68,33 +68,3 @@ uint32_t randp(float lam)
 // more accurate Gaussian random number generator.
 float randn(void) { return IrwinHallDist(); }
 
-////////////////////////////////////////////////////////////////////////////////
-// Generate random integers drawn from Poisson distribution with parameter "p".
-// Uses Gaussian approximation for p >= 20.
-void PoissonDist(
-    float     lam,   // mean and variance of Poisson distribution
-    uint32_t  count, // number of values to generate
-    uint32_t* pOut)  // output values drawn from Poisson distribution
-{
-    if (lam == 0.0f)
-    {
-        memset(pOut, 0x00u, count * sizeof(uint32_t));
-        return;
-    }
-
-    if (lam < 20.0f)
-    {
-        while (count--) { *pOut++ = randp(lam); }
-    }
-    else // else lam >= 20 which is where Gaussian approximation is accurate
-    {
-        const float mean   = lam;
-        const float stddev = sqrtf(lam);
-        while (count--)
-        {
-            float gaussian = stddev * randn() + mean;
-            if (gaussian < 0.0f) { gaussian = 0.0f; }
-            *pOut++ = (uint32_t)(gaussian + 0.5f); // round to integer
-        }
-    }
-}

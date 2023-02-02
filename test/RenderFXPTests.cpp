@@ -123,23 +123,23 @@ TEST(PolygonTests, Random) {
     // Test that randn() generates zero-mean, unit variance values
     for (int i = 0; i < count; ++i) { gSamples[i] = randn(); }
     double mean, var;
-    MeanVariance(count, gSamples, &mean, &var);
+    MeanVariance<float>(count, gSamples, &mean, &var);
     //printf("mean= %lf, var= %lf\n", mean, var);
     EXPECT_NEAR(mean, 0.0, 1e-2);
     EXPECT_NEAR(var,  1.0, 1e-2);
 
     // Test that poisson random number generator works for p < 20
     float p = 2.0f;
-    PoissonDist(p, count, pSamples);
-    MeanVariance(count, pSamples, &mean, &var);
+    PoissonDist<uint32_t>(p, count, pSamples);
+    MeanVariance<uint32_t>(count, pSamples, &mean, &var);
     //printf("poisson( 0.5): mean= %lf, var= %lf\n", mean, var);
     EXPECT_NEAR(mean, (double)p, 1e-2);
     EXPECT_NEAR(var,  (double)p, 1e-2);
 
     // Test that poisson random number generator works for p = 20.0
     p = 20.0f;
-    PoissonDist(p, count, pSamples);
-    MeanVariance(count, pSamples, &mean, &var);
+    PoissonDist<uint32_t>(p, count, pSamples);
+    MeanVariance<uint32_t>(count, pSamples, &mean, &var);
     //printf("poisson(20.0): mean= %lf, var= %lf\n", mean, var);
     EXPECT_NEAR(mean, (double)p, 1e-1);
     EXPECT_NEAR(var,  (double)p, 1e-1);
@@ -163,14 +163,14 @@ TEST(PolygonTests, RadiusRaster) {
         // set up radius for first pixel of this row
         // Note: due to cast to int: iradius * iradius <= radius2
         int radius2  = r * r + widthDiv2 * widthDiv2;
-        int iradius  = (int)sqrtf((float)radius2); // "integer radius"
+        int iradius  = (int)sqrtf((float)radius2); // "integer radius" = floor(sqrt(radius2))
 #ifdef MINIMIZE_MULTIPLIES
         int iradius2 = iradius * iradius;
 #endif
         for (int c = -widthDiv2; c < widthDiv2; ++c)
         {
 
-            // Code that uses iradius normally goes here.
+            // Code that uses iradius would normally go here.
 
             // update radius2 for next column (c + 1):
             // we're at c^2 and need to get to (c+1)^2

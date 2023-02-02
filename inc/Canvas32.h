@@ -64,7 +64,7 @@ public:
     }
 
     // Set a pixel (without bounds checking in release builds)
-    void SetPixel(int32_t X, int32_t Y, uint32_t color)
+    inline void SetPixel(int32_t X, int32_t Y, uint32_t color)
     {
         assert((0 <= X) && (X < m_width));   // bounds check
         assert((0 <= Y) && (Y < m_height));

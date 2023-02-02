@@ -26,6 +26,7 @@
 #include "Canvas32.h"
 #include "GdiWindow.h"
 #include "SpadSim.h"
+#include "cow.h"
 
 #define NUM_CUBE_VERTS  8 /* # of vertices per cube */
 #define NUM_CUBE_FACES  6 /* # of faces per cube */
@@ -105,7 +106,7 @@ static RotateControl InitialRotate[NUM_CUBES] = {
    {-ROT_3,     0,-ROT_3},
    {     0, ROT_2,-ROT_2},
    {     0,-ROT_3, ROT_3},
-   {     0,-ROT_6,-ROT_6} };
+   { ROT_2, ROT_2, ROT_2} };
 
 const Fixedpoint minX = -200;
 const Fixedpoint maxX =  200;
@@ -148,7 +149,7 @@ void InitializeCubes()
    PObject *WorkingCube;
 
    for (i=0; i < NUM_CUBES; i++) {
-      if ((WorkingCube = (PObject*)malloc(sizeof(PObject))) == NULL)
+      if ((WorkingCube = (PObject*)calloc(1, sizeof(PObject))) == NULL)
       {
          printf("Couldn't get memory\n");
          exit(1);
@@ -180,43 +181,78 @@ void InitializeCubes()
           WorkingCube->XformToWorld[j][3] = INT_TO_FIXED(CubeStartCoords[i][j]);
       }
 
-      WorkingCube->NumVerts   = NUM_CUBE_VERTS;
-      WorkingCube->VertexList = CubeVerts;
-      WorkingCube->NumFaces   = NUM_CUBE_FACES;
-      WorkingCube->Rotate     = InitialRotate[i];
-      WorkingCube->Move.MoveX = INT_TO_FIXED(InitialMove.MoveX);
-      WorkingCube->Move.MoveY = INT_TO_FIXED(InitialMove.MoveY);
-      WorkingCube->Move.MoveZ = INT_TO_FIXED(InitialMove.MoveZ);
+      if (i < NUM_CUBES - 1)
+      {
+          WorkingCube->NumVerts   = NUM_CUBE_VERTS;
+          WorkingCube->VertexList = CubeVerts;
+          WorkingCube->NumFaces   = NUM_CUBE_FACES;
+          WorkingCube->Rotate     = InitialRotate[i];
+          WorkingCube->Move.MoveX = INT_TO_FIXED(InitialMove.MoveX);
+          WorkingCube->Move.MoveY = INT_TO_FIXED(InitialMove.MoveY);
+          WorkingCube->Move.MoveZ = INT_TO_FIXED(InitialMove.MoveZ);
 
-      WorkingCube->Move.MinX  = INT_TO_FIXED(InitialMove.MinX);
-      WorkingCube->Move.MinY  = INT_TO_FIXED(InitialMove.MinY);
-      WorkingCube->Move.MinZ  = INT_TO_FIXED(InitialMove.MinZ);
+          WorkingCube->Move.MinX  = INT_TO_FIXED(InitialMove.MinX);
+          WorkingCube->Move.MinY  = INT_TO_FIXED(InitialMove.MinY);
+          WorkingCube->Move.MinZ  = INT_TO_FIXED(InitialMove.MinZ);
 
-      WorkingCube->Move.MaxX  = INT_TO_FIXED(InitialMove.MaxX);
-      WorkingCube->Move.MaxY  = INT_TO_FIXED(InitialMove.MaxY);
-      WorkingCube->Move.MaxZ  = INT_TO_FIXED(InitialMove.MaxZ);
+          WorkingCube->Move.MaxX  = INT_TO_FIXED(InitialMove.MaxX);
+          WorkingCube->Move.MaxY  = INT_TO_FIXED(InitialMove.MaxY);
+          WorkingCube->Move.MaxZ  = INT_TO_FIXED(InitialMove.MaxZ);
 
-      if ((WorkingCube->XformedVertexList =
-            (Point3*)malloc(NUM_CUBE_VERTS*sizeof(Point3))) == NULL) {
-         printf("Couldn't get memory\n"); exit(1); }
+          WorkingCube->XformedVertexList   = (Point3*)malloc(NUM_CUBE_VERTS*sizeof(Point3));
+          WorkingCube->ProjectedVertexList = (Point3*)malloc(NUM_CUBE_VERTS*sizeof(Point3));
+          WorkingCube->ScreenVertexList    = (Point* )malloc(NUM_CUBE_VERTS*sizeof(Point ));
+          WorkingCube->FaceList            = (Face*  )malloc(NUM_CUBE_FACES*sizeof(Face  ));
 
-      if ((WorkingCube->ProjectedVertexList =
-            (Point3*)malloc(NUM_CUBE_VERTS*sizeof(Point3))) == NULL) {
-         printf("Couldn't get memory\n"); exit(1); }
+          /* Initialize object faces */
+          for (j=0; j < NUM_CUBE_FACES; j++) {
+             WorkingCube->FaceList[j].VertNums = VertNumList[j];
+             WorkingCube->FaceList[j].NumVerts = VertsInFace[j];
+             WorkingCube->FaceList[j].Color    = rand() & 0xFFu; // random colors
+          }
+      }
+      else // else setup the cow object
+      {
+          int32_t NumVerts = ARRAYSIZE(cow_vertices);
+          int32_t NumFaces = ARRAYSIZE(cow_nvertices) / 3; // = 3156
+          WorkingCube->NumVerts = NumVerts;
+          WorkingCube->NumFaces = NumFaces;
 
-      if ((WorkingCube->ScreenVertexList =
-            (Point*)malloc(NUM_CUBE_VERTS*sizeof(Point))) == NULL) {
-         printf("Couldn't get memory\n"); exit(1); }
+          // Convert floating point vertices to fixed point
+          Point3* vertices = (Point3*)malloc(NumVerts * sizeof(Point3));
+          for (j=0; j < NumVerts; j++)
+          {
+              vertices[j].X = DOUBLE_TO_FIXED(cow_vertices[j].X * 5.0);
+              vertices[j].Y = DOUBLE_TO_FIXED(cow_vertices[j].Y * 5.0);
+              vertices[j].Z = DOUBLE_TO_FIXED(cow_vertices[j].Z * 5.0);
+          }
 
-      if ((WorkingCube->FaceList =
-            (Face*)malloc(NUM_CUBE_FACES*sizeof(Face))) == NULL) {
-         printf("Couldn't get memory\n"); exit(1); }
+          WorkingCube->VertexList = vertices; // point Point3* to array of Point3
 
-      /* Initialize the object faces */
-      for (j=0; j<NUM_CUBE_FACES; j++) {
-         WorkingCube->FaceList[j].VertNums = VertNumList[j];
-         WorkingCube->FaceList[j].NumVerts = VertsInFace[j];
-         WorkingCube->FaceList[j].Color    = rand() & 0xFFu; // random colors
+          WorkingCube->Rotate     = InitialRotate[i];
+          WorkingCube->Move.MoveX = INT_TO_FIXED(InitialMove.MoveX);
+          WorkingCube->Move.MoveY = INT_TO_FIXED(InitialMove.MoveY);
+          WorkingCube->Move.MoveZ = INT_TO_FIXED(InitialMove.MoveZ);
+
+          WorkingCube->Move.MinX  = INT_TO_FIXED(InitialMove.MinX);
+          WorkingCube->Move.MinY  = INT_TO_FIXED(InitialMove.MinY);
+          WorkingCube->Move.MinZ  = INT_TO_FIXED(InitialMove.MinZ);
+
+          WorkingCube->Move.MaxX  = INT_TO_FIXED(InitialMove.MaxX);
+          WorkingCube->Move.MaxY  = INT_TO_FIXED(InitialMove.MaxY);
+          WorkingCube->Move.MaxZ  = INT_TO_FIXED(InitialMove.MaxZ);
+
+          WorkingCube->XformedVertexList   = (Point3*)malloc(NumVerts*sizeof(Point3));
+          WorkingCube->ProjectedVertexList = (Point3*)malloc(NumVerts*sizeof(Point3));
+          WorkingCube->ScreenVertexList    = (Point* )malloc(NumVerts*sizeof(Point ));
+          WorkingCube->FaceList            = (Face*  )malloc(NumFaces*sizeof(Face  ));
+
+          // Initialize the object faces
+          for (j=0; j < NumFaces; j++) {
+             WorkingCube->FaceList[j].VertNums = &cow_nvertices[j * 3];
+             WorkingCube->FaceList[j].NumVerts = 3;
+             WorkingCube->FaceList[j].Color    = rand() & 0xFFu; // random colors
+          }
       }
       ObjectList[NumObjects++] = WorkingCube;
    }
@@ -300,7 +336,9 @@ int WINAPI wWinMain(
     const int height =  768;
 
     // open console for printf output
+#ifdef DEBUG_CONSOLE
     if (OpenConsole(L"CubeTest Console") != 0) { return 0; }
+#endif
 
     // uint32_t Canvas that will contain 2D rendering of 3D scene
     // TODO: uint16_t would be faster since half the data movement (but can
@@ -310,7 +348,6 @@ int WINAPI wWinMain(
     GdiWindow      window(width, height); // GUI window to display final image
 
     // intentionally making window bigger as we don't get the size we ask for,
-    // some kind of GDI window size requirement.
     if (!window.Create(L"CubeTest", WS_OVERLAPPEDWINDOW, 0, 0, 0, width + 64, height + 64))
     {
         return 0;
@@ -361,10 +398,13 @@ int WINAPI wWinMain(
     // free ObjectList
     for (int i = 0; i < NumObjects; ++i)
     {
+        // TODO: switch to use std::vector rather than malloc/free
         free(ObjectList[i]);
         ObjectList[i] = nullptr;
     }
 
+#ifdef DEBUG_CONSOLE
     FreeConsole(); // needed due to AllocConsole()
+#endif
     return 0;
 }
